@@ -1,0 +1,227 @@
+<html>
+ <head>
+  <base href='http://example.com/' />
+  <title>Example website</title>
+ </head>
+ <body>
+  <div id='images'>
+   <a href='image1.html'>Name: My image 1 <br /><img src='image1_thumb.jpg' /></a>
+   <a href='image2.html'>Name: My image 2 <br /><img src='image2_thumb.jpg' /></a>
+   <a href='image3.html'>Name: My image 3 <br /><img src='image3_thumb.jpg' /></a>
+   <a href='image4.html'>Name: My image 4 <br /><img src='image4_thumb.jpg' /></a>
+   <a href='image5.html'>Name: My image 5 <br /><img src='image5_thumb.jpg' /></a>
+  </div>
+ </body>
+</html>
+
+为了提取真实的原文数据，你需要调用 .extract() 方法如下:
+>>> response.xpath('//title/text()').extract()
+[u'Example website']
+>>> response.css('title::text').extract()
+[u'Example website']
+现在我们将得到根URL(base URL)和一些图片链接:
+>>> response.xpath('//base/@href').extract()
+[u'http://example.com/']
+>>> response.css('base::attr(href)').extract()
+[u'http://example.com/']
+####匹配所有a元素中含有属性的值为image1.html的元素
+>>> response.xpath('//a[@*="image1.html"]').extract()
+['<a href="image1.html">Name: My image 1 <br><img src="image1_thumb.jpg"></a>']
+
+
+>>> response.xpath('//a[contains(@href, "image")]/@href').extract()
+[u'image1.html',
+ u'image2.html',
+ u'image3.html',
+ u'image4.html',
+ u'image5.html']
+
+>>> response.css('a[href*=image]::attr(href)').extract()
+[u'image1.html',
+ u'image2.html',
+ u'image3.html',
+ u'image4.html',
+ u'image5.html']
+
+>>> response.xpath('//a[contains(@href, "image")]/img/@src').extract()
+[u'image1_thumb.jpg',
+ u'image2_thumb.jpg',
+ u'image3_thumb.jpg',
+ u'image4_thumb.jpg',
+ u'image5_thumb.jpg']
+
+>>> response.css('a[href*=image] img::attr(src)').extract()
+[u'image1_thumb.jpg',
+ u'image2_thumb.jpg',
+ u'image3_thumb.jpg',
+ u'image4_thumb.jpg',
+ u'image5_thumb.jpg']
+
+嵌套选择器(selectors)
+选择器方法( .xpath() or .css() )返回相同类型的选择器列表，因此你也可以对这些选择器调用选择器方法。下面是一个例子:
+
+>>> links = response.xpath('//a[contains(@href, "image")]')
+>>> links.extract()
+[u'<a href="image1.html">Name: My image 1 <br><img src="image1_thumb.jpg"></a>',
+ u'<a href="image2.html">Name: My image 2 <br><img src="image2_thumb.jpg"></a>',
+ u'<a href="image3.html">Name: My image 3 <br><img src="image3_thumb.jpg"></a>',
+ u'<a href="image4.html">Name: My image 4 <br><img src="image4_thumb.jpg"></a>',
+ u'<a href="image5.html">Name: My image 5 <br><img src="image5_thumb.jpg"></a>']
+
+>>> for index, link in enumerate(links):
+        args = (index, link.xpath('@href').extract(), link.xpath('img/@src').extract())
+        print 'Link number %d points to url %s and image %s' % args
+
+Link number 0 points to url [u'image1.html'] and image [u'image1_thumb.jpg']
+Link number 1 points to url [u'image2.html'] and image [u'image2_thumb.jpg']
+Link number 2 points to url [u'image3.html'] and image [u'image3_thumb.jpg']
+Link number 3 points to url [u'image4.html'] and image [u'image4_thumb.jpg']
+Link number 4 points to url [u'image5.html'] and image [u'image5_thumb.jpg']
+
+
+结合正则表达式使用选择器(selectors)
+Selector 也有一个 .re() 方法，用来通过正则表达式来提取数据。然而，不同于使用 .xpath() 或者 .css() 方法, .re() 方法返回unicode字符串的列表。所以你无法构造嵌套式的 .re() 调用。
+
+下面是一个例子，从上面的 HTML code 中提取图像名字:
+
+>>> response.xpath('//a[contains(@href, "image")]/text()').re(r'Name:\s*(.*)')
+[u'My image 1',
+ u'My image 2',
+ u'My image 3',
+ u'My image 4',
+ u'My image 5']
+
+使用相对XPaths
+
+记住如果你使用嵌套的选择器，并使用起始为 / 的XPath，那么该XPath将对文档使用绝对路径，而且对于你调用的 Selector 不是相对路径。
+
+比如，假设你想提取在 <div> 元素中的所有 <p> 元素。首先，你将先得到所有的 <div> 元素:
+
+>>> divs = response.xpath('//div')
+开始时，你可能会尝试使用下面的错误的方法，因为它其实是从整篇文档中，而不仅仅是从那些 <div> 元素内部提取所有的 <p> 元素:
+
+>>> for p in divs.xpath('//p'):  # this is wrong - gets all <p> from the whole document
+...     print p.extract()
+下面是比较合适的处理方法(注意 .//p XPath的点前缀):
+
+>>> for p in divs.xpath('.//p'):  # extracts all <p> inside
+...     print p.extract()
+另一种常见的情况将是提取所有直系 <p> 的结果:
+
+>>> for p in divs.xpath('p'):
+...     print p.extract()
+
+正则表达式
+例如在XPath的 starts-with() 或 contains() 无法满足需求时， test() 函数可以非常有用。
+
+例如在列表中选择有”class”元素且结尾为一个数字的链接:
+
+>>> from scrapy import Selector
+>>> doc = """
+... <div>
+...     <ul>
+...         <li class="item-0"><a href="link1.html">first item</a></li>
+...         <li class="item-1"><a href="link2.html">second item</a></li>
+...         <li class="item-inactive"><a href="link3.html">third item</a></li>
+...         <li class="item-1"><a href="link4.html">fourth item</a></li>
+...         <li class="item-0"><a href="link5.html">fifth item</a></li>
+...     </ul>
+... </div>
+... """
+>>> sel = Selector(text=doc, type="html")
+>>> sel.xpath('//li//@href').extract()
+[u'link1.html', u'link2.html', u'link3.html', u'link4.html', u'link5.html']
+>>> sel.xpath('//li[re:test(@class, "item-\d$")]//@href').extract()
+[u'link1.html', u'link2.html', u'link4.html', u'link5.html']
+>>>
+
+集合操作
+集合操作可以方便地用于在提取文字元素前从文档树中去除一些部分。
+
+例如使用itemscopes组和对应的itemprops来提取微数据(来自http://schema.org/Product的样本内容):
+
+>>> doc = """
+... <div itemscope itemtype="http://schema.org/Product">
+...   <span itemprop="name">Kenmore White 17" Microwave</span>
+...   <img src="kenmore-microwave-17in.jpg" alt='Kenmore 17" Microwave' />
+...   <div itemprop="aggregateRating"
+...     itemscope itemtype="http://schema.org/AggregateRating">
+...    Rated <span itemprop="ratingValue">3.5</span>/5
+...    based on <span itemprop="reviewCount">11</span> customer reviews
+...   </div>
+...
+...   <div itemprop="offers" itemscope itemtype="http://schema.org/Offer">
+...     <span itemprop="price">$55.00</span>
+...     <link itemprop="availability" href="http://schema.org/InStock" />In stock
+...   </div>
+...
+...   Product description:
+...   <span itemprop="description">0.7 cubic feet countertop microwave.
+...   Has six preset cooking categories and convenience features like
+...   Add-A-Minute and Child Lock.</span>
+...
+...   Customer reviews:
+...
+...   <div itemprop="review" itemscope itemtype="http://schema.org/Review">
+...     <span itemprop="name">Not a happy camper</span> -
+...     by <span itemprop="author">Ellie</span>,
+...     <meta itemprop="datePublished" content="2011-04-01">April 1, 2011
+...     <div itemprop="reviewRating" itemscope itemtype="http://schema.org/Rating">
+...       <meta itemprop="worstRating" content = "1">
+...       <span itemprop="ratingValue">1</span>/
+...       <span itemprop="bestRating">5</span>stars
+...     </div>
+...     <span itemprop="description">The lamp burned out and now I have to replace
+...     it. </span>
+...   </div>
+...
+...   <div itemprop="review" itemscope itemtype="http://schema.org/Review">
+...     <span itemprop="name">Value purchase</span> -
+...     by <span itemprop="author">Lucas</span>,
+...     <meta itemprop="datePublished" content="2011-03-25">March 25, 2011
+...     <div itemprop="reviewRating" itemscope itemtype="http://schema.org/Rating">
+...       <meta itemprop="worstRating" content = "1"/>
+...       <span itemprop="ratingValue">4</span>/
+...       <span itemprop="bestRating">5</span>stars
+...     </div>
+...     <span itemprop="description">Great microwave for the price. It is small and
+...     fits in my apartment.</span>
+...   </div>
+...   ...
+... </div>
+... """
+>>>
+>>> for scope in sel.xpath('//div[@itemscope]'):
+...     print "current scope:", scope.xpath('@itemtype').extract()
+...     props = scope.xpath('''
+...                 set:difference(./descendant::*/@itemprop,
+...                                .//*[@itemscope]/*/@itemprop)''')
+...     print "    properties:", props.extract()
+...     print
+...
+
+current scope: [u'http://schema.org/Product']
+    properties: [u'name', u'aggregateRating', u'offers', u'description', u'review', u'review']
+
+current scope: [u'http://schema.org/AggregateRating']
+    properties: [u'ratingValue', u'reviewCount']
+
+current scope: [u'http://schema.org/Offer']
+    properties: [u'price', u'availability']
+
+current scope: [u'http://schema.org/Review']
+    properties: [u'name', u'author', u'datePublished', u'reviewRating', u'description']
+
+current scope: [u'http://schema.org/Rating']
+    properties: [u'worstRating', u'ratingValue', u'bestRating']
+
+current scope: [u'http://schema.org/Review']
+    properties: [u'name', u'author', u'datePublished', u'reviewRating', u'description']
+
+current scope: [u'http://schema.org/Rating']
+    properties: [u'worstRating', u'ratingValue', u'bestRating']
+
+>>>
+在这里，我们首先在 itemscope 元素上迭代，对于其中的每一个元素，我们寻找所有的 itemprops 元素，并排除那些本身在另一个 itemscope 内的元素。
+
+
