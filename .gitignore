@@ -26,3 +26,5 @@ server.py
 server.py~
 tmp.py~
 tutorial
+*.un~
+*.py~
